@@ -1,12 +1,35 @@
-This project provides an agent for GitHub's Copilot that can query an Octopus
-Server. It is deployed as an Azure functions app, and integrates with the
-Azure OpenAI service.
+The Octopus Extension for GitHub Copilot brings real-time information and control over your builds and deployments into your Copilot chat. This keeps developers in the flow by allowing them to complete their entire CI/CD workflow without leaving their IDE.
+
+The extension queries the state of your Octopus server, combines GitHub issues and Git diffs captured in [build information](https://octopus.com/docs/packaging-applications/build-servers/build-information), and passes the information to a GPT-4o LLM to summarize your deployments and provide assistance.
+
+The extension also interacts directly with the Octopus API to create releases, deploy releases, and run runbooks.
+
+This allows you to:
+
+* View the state of your GitHub Actions workflows - `Show the github workflow summary`
+* View the state of your environments - `Show the dashboard`
+* Create and deploy releases - `Create a release in the project "Audits" in the space "Payments" and deploy to the "Development" environment`
+* Execute runbooks - `Run the runbook "Restart web app" in the project "Audits" in the space "Payments" in the "Production" environment`
+* Explain what projects do - `What do the steps in the project "Audits" in the space "Payments" do?`
+* Inspect projects for common misconfigurations - `Find usused variables in the project "Audits" in the space "Payments"`
+* Provide help on failed deployments - `Help me fix release "1.2.3" of the "Audits" project to the "Production" environment`
+* Generate customized reports - `Given release "1.2.3" of project "Audits" to the "Production" environment, provide a one sentence summary of the Git Diff for each file changed as part of the release.`
+
+To get started with the extension, enter the prompt `hi` to receive a list of available commands.
+
+# Screenshots
+
+![Octopus Copilot screenshot](docs/screenshot-dashboard.png)
+
+# Architecture diagram
+
+![](docs/architecture.svg)
 
 # Documentation
 
 View the documentation [here](https://octopus.com/docs/administration/copilot).
 
-# Prompt Engineering Guide
+# Prompt engineering guide
 
 View the [Wiki](https://github.com/OctopusSolutionsEngineering/OctopusCopilot/wiki/Prompt-Engineering-with-Octopus) for
 a guide on prompt engineering with this agent.
@@ -48,10 +71,6 @@ the private beta.
 We have a [test web site](https://aiagent.octopus.com/api/form) that responds to the same queries
 as the chat interface. The web based interface is functionally equivalent to the Copilot chat interface in terms of
 interacting with an Octopus server.
-
-# Architecture diagram
-
-![](docs/architecture.svg)
 
 # Code structure
 
