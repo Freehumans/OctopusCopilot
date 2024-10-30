@@ -7,7 +7,21 @@ from presidio_anonymizer import AnonymizerEngine
 from domain.sanitizers.stringlifier.api import Stringlifier
 from domain.validation.argument_validation import ensure_string
 
-sensitive_vars = ["[Aa][Pp][Ii]-[A-Za-z0-9]+"]
+# https://github.com/odomojuli/regextokens
+sensitive_vars = [
+    "[Aa][Pp][Ii]-[A-Za-z0-9]+",
+    "xoxe.xoxp-1-[0-9a-zA-Z]{166}",
+    "xoxb-[0-9]{11}-[0-9]{11}-[0-9a-zA-Z]{24}",
+    "xoxp-[0-9]{11}-[0-9]{11}-[0-9a-zA-Z]{24}",
+    "xoxe-1-[0-9a-zA-Z]{147}",
+    "T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}",
+    "ghp_[A-Za-z0-9-]+",
+    "github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}",
+    "gho_[a-zA-Z0-9]{36}",
+    "ghu_[a-zA-Z0-9]{36}",
+    "ghs_[a-zA-Z0-9]{36}",
+    "ghr_[a-zA-Z0-9]{36}",
+]
 # From https://github.com/adobe/stringlifier with some minor modifications to work with the latest
 # versions of numpy.
 stringlifier = Stringlifier()
@@ -54,7 +68,7 @@ def anonymize_message(message):
     """
     ensure_string(message, "message must be a string (anonymize_message)")
 
-    results = analyzer.analyze(text=message, language='en')
+    results = analyzer.analyze(text=message, language="en")
     anonymized_text = anonymizer.anonymize(text=message, analyzer_results=results).text
     stringlifier_text = stringlifier(anonymized_text)
 

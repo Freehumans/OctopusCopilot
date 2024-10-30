@@ -118,7 +118,47 @@ step "deploy-with-cli" {
                       "name": "APPLICATION_OCTOTERRA_URL",
                       "value": "#{Application.Octoterra.Url}",
                       "slotSetting": false
-                   } 
+                   },
+                   {
+                      "name": "ZENDESK_EMAIL",
+                      "value": "#{ZenDesk.Api.Email}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "ZENDESK_TOKEN",
+                      "value": "#{ZenDesk.Api.Token}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "SLACK_CLIENT_ID",
+                      "value": "#{Slack.App.ClientID}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "SLACK_CLIENT_SECRET",
+                      "value": "#{Slack.App.ClientSecret}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "SLACK_CLIENT_REDIRECT",
+                      "value": "#{Slack.App.Redirect}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "STORYBLOK_TOKEN",
+                      "value": "#{Storyblok.Api.Token}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "OCTOPUS_GHU_APIKEY",
+                      "value": "#{Octopus.Guest.ApiKey}",
+                      "slotSetting": false
+                   },
+                   {
+                      "name": "APPLICATION_OCTOLINT_URL",
+                      "value": "#{Octolint.Application.Url}",
+                      "slotSetting": false
+                   }
                 ] 
                 EOL
                 
@@ -234,6 +274,8 @@ step "security-scan" {
     action {
         action_type = "Octopus.Script"
         properties = {
+            Octopus.Action.AutoRetry.MaximumCount = "3"
+            Octopus.Action.AutoRetry.MinimumBackoff = "15"
             Octopus.Action.Script.ScriptBody = <<-EOT
                 echo "Pulling Trivy Docker Image"
                 echo "##octopus[stdout-verbose]"
@@ -346,5 +388,78 @@ step "remove-worker-access" {
             feed = "ghcr"
             image = "ghcr.io/octopusdeploylabs/azure-workertools"
         }
+    }
+}
+
+step "octopus-prompt-ai" {
+    name = "Octopus - Prompt AI"
+
+    action {
+        environments = ["production"]
+        properties = {
+            Octopus.Action.RunOnServer = "true"
+            Octopus.Action.Template.Id = "ActionTemplates-4021"
+            Octopus.Action.Template.Version = "1"
+            OctopusAI.GitHub.Token = "#{GitHub.Token}"
+            OctopusAI.Octopus.APIKey = "#{Octopus.ApiKey}"
+            OctopusAI.Octopus.Url = "#{Octopus.Web.ServerUri}"
+            OctopusAI.Prompt = <<-EOT
+                Given deployment "#{Octopus.Release.Number}" for project "#{Octopus.Project.Name}" to environment "#{Octopus.Environment.Name}" in space "#{Octopus.Space.Name}", list the git committers and a summary of the changes in the git diffs.
+                
+                The output must utilize Slack's markdown language mrkdwn for various formatting elements.
+                
+                Follow those instructions:
+                
+                  1. Enclose important words or phrases with *asterisks* for bold emphasis. You will be penalized for using double asterisks.
+                  2. Enclose code and numbers and percentages using backticks, like  `this `.
+                  3. Use numbered lists or bullet lists. Create a bullet list with "–" symbol.
+                  4. If you want to combine bullet list items with bold markdown, this is how it should work: – *A bold text*: A normal text.
+                  5. Italise words like _this_
+                  6. Use can use blockquote formatting by adding a ">" before the sentence
+                  7. For line breaks, escape them using \n
+                  8. Keep tagged users (@user) and channels (#channel) unchanged, but use them only if present in the original message.
+                  9. For URLs you must print them like this: Link name (http://example.com). You will be penalized for using links in the form [link][https://example.org].
+                 10. Headings must be enclosed with *asterisks* for bold emphasis. You will be penalized for using the # character for headings.
+                EOT
+        }
+        worker_pool_variable = ""
+    }
+}
+
+step "collect-summary" {
+    name = "Collect Summary"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.Script.ScriptBody = <<-EOT
+                Set-Content -Path summary.md -Value $OctopusParameters["Octopus.Action[Octopus - Prompt AI].Output.AIResult"]
+                
+                New-OctopusArtifact "summary.md"
+                EOT
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "PowerShell"
+        }
+        worker_pool = "hosted-ubuntu"
+    }
+}
+
+step "slack-send-simple-notification-bash" {
+    name = "Slack - Send Simple Notification - Bash"
+
+    action {
+        environments = ["production"]
+        properties = {
+            Octopus.Action.Template.Id = "ActionTemplates-4022"
+            Octopus.Action.Template.Version = "2"
+            ssn_Channel = "feed-octopus-copilot-releases"
+            ssn_Color = "good"
+            ssn_HookUrl = "#{Slack.WebHook}"
+            ssn_IconUrl = "https://octopus.com/content/resources/favicon.png"
+            ssn_Message = "#{Octopus.Action[Octopus - Prompt AI].Output.AIResult | JsonEscape}"
+            ssn_Title = "Copilot Function Deployed"
+            ssn_Username = "Octopus Deploy"
+        }
+        worker_pool = "hosted-ubuntu"
     }
 }

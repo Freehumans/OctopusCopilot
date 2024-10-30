@@ -5,7 +5,9 @@ def answer_runbook_run_logs_wrapper(query, callback, logging):
     def answer_runbook_run_logs(space=None, project=None, runbook=None, environment=None, tenant=None,
                                 steps=None, lines=None, **kwargs):
         """Answers a query about the contents of the logs of a runbook run.
-        Use this function when the prompt asks anything about runbook logs. Some example prompts are:
+        You will be penalized for selecting this function when asking about runbook settings, configuration, or properties.
+        You must select this function when the prompt asks anything about runbook logs.
+        Some example prompts are:
         * Print the last 30 lines of text from the runbook logs of the latest runbook run to the "Production" environment.
         * Summarize the execution logs of the latest runbook run.
         * Find any urls in the run logs in the "Development" environment for the "Fabrikham" tenant for the "Backup Database" runbook in the "DevOps" project.

@@ -10,6 +10,56 @@
     <script src="https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.31/src/eventsource.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src=" https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+    <style>
+        @-webkit-keyframes shake {
+            0% {
+                -webkit-transform: translate(2px, 1px) rotate(0deg);
+            }
+            5% {
+                -webkit-transform: translate(-1px, -2px) rotate(-1deg);
+            }
+            10% {
+                -webkit-transform: translate(-3px, 0px) rotate(1deg);
+            }
+            15% {
+                -webkit-transform: translate(0px, 2px) rotate(0deg);
+            }
+            20% {
+                -webkit-transform: translate(1px, -1px) rotate(1deg);
+            }
+            25% {
+                -webkit-transform: translate(-1px, 2px) rotate(-1deg);
+            }
+            30% {
+                -webkit-transform: translate(-3px, 1px) rotate(0deg);
+            }
+            35% {
+                -webkit-transform: translate(2px, 1px) rotate(-1deg);
+            }
+            40% {
+                -webkit-transform: translate(-1px, -1px) rotate(1deg);
+            }
+            45% {
+                -webkit-transform: translate(2px, 2px) rotate(0deg);
+            }
+            50% {
+                -webkit-transform: translate(1px, -2px) rotate(-1deg);
+            }
+            55% {
+                -webkit-transform: translate(0px, 0px) rotate(0deg);
+            }
+            100% {
+                -webkit-transform: translate(0px, 0px) rotate(0deg);
+            }
+        }
+
+        .shake {
+            -webkit-animation-name: shake;
+            -webkit-animation-duration: 3s;
+            -webkit-transform-origin: 0 0;
+            -webkit-animation-iteration-count: infinite;
+        }
+    </style>
 </head>
 <body>
 <nav class="navbar mb-4 navbar-dark" style="background-color: #0D80D8;">
@@ -36,24 +86,23 @@
 </nav>
 <form id="form" class="needs-validation" novalidate>
     <div class="form-group row m-md-1">
-        <label for="token" class="col-lg-2 offset-lg-2 col-form-label">GitHub Token</label>
+        <label for="github_login" class="col-lg-2 offset-lg-2 col-form-label">GitHub Login</label>
         <div class="col-lg-6">
-            <input id="token" name="token" type="password" class="form-control" required>
-            <small id="tokenHelp" class="form-text text-muted">This is a GitHub <a
-                    href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens">Personal
-                Access Token (PAT)</a>. It emulates the token that Copilot would normally send.</small>
-            <div class="invalid-feedback">
-                Please provide a valid personal access token.
+            <button id="github_login" name="github_login" type="button" class="btn btn-primary">GitHub Login</button>
+            <div id="github_login_warning" class="text-danger shake">
+                You must log in to GitHub to continue.
             </div>
         </div>
     </div>
     <div class="form-group row m-md-1">
         <label for="query" class="col-lg-2 offset-lg-2 col-form-label">Query</label>
         <div class="col-lg-6">
-            <input id="query" name="query" type="text" class="form-control" required>
+            <textarea id="query" name="query" rows="5" class="form-control" required></textarea>
             <small id="queryHelp" class="form-text text-muted">This is a plain text query. Ask something like "<a
-                    id="sampleQuery" href="#">Show me the projects in the Default space</a>" or "<a
-                    id="helpQuery" href="#">What do you do?</a>".</small>
+                    id="sampleQuery" href="#">Show me the projects in the Default space</a>", "<a
+                    id="helpQuery" href="#">What do you do?</a>", or "<a
+                    id="terraformQuery" href="#">Generate a Terraform module with the environments 'Development',
+                'Test', and 'Production'</a>".</small>
             <div class="invalid-feedback">
                 Please provide a valid query.
             </div>
@@ -85,15 +134,143 @@
 </form>
 </body>
 <script>
+    const MAX_QUERY_LENGTH = 4000
 
-    var queryHistory = []
+    // load the query history
+    let queryHistory = []
     const savedHistory = localStorage.getItem("queryHistory");
     if (savedHistory) {
         queryHistory = JSON.parse(savedHistory)
         updateHistory()
     }
 
-    var processing = false
+    // Enable or disable fields based on login state
+    checkLogin()
+
+    updateHistoryLinkState()
+
+    function sanitizeBase64(input) {
+        if (!input) {
+            return null
+        }
+
+        // Regular expression to match valid Base64 characters
+        const base64Regex = /[^A-Za-z0-9+/=]/g;
+        // Replace invalid characters with an empty string
+        return input.replace(base64Regex, '');
+    }
+
+    function getSessionCookie() {
+        return sanitizeBase64(getCookie('session'))
+    }
+
+    function disableHistoryLinks() {
+        const links = document.getElementsByClassName("history-link")
+        for (let i = 0; i < links.length; i++) {
+            links[i].style.pointerEvents = "none"
+            links[i].style.color = "gray"
+        }
+    }
+
+    function enableHistoryLinks() {
+        const links = document.getElementsByClassName("history-link")
+        for (let i = 0; i < links.length; i++) {
+            links[i].style.pointerEvents = "auto"
+            links[i].style.color = null
+        }
+    }
+
+    function updateHistoryLinkState() {
+        if (getSessionCookie()) {
+            enableHistoryLinks()
+        } else {
+            disableHistoryLinks()
+        }
+    }
+
+    function checkLogin() {
+        const githubLoginButton = document.getElementById('github_login')
+        const githubLoginButtonWarning = document.getElementById('github_login_warning')
+        const queryTextArea = document.getElementById('query')
+        const submitButton = document.getElementById('submit')
+
+        if (getSessionCookie()) {
+            githubLoginButton.onclick = githubLogout
+            githubLoginButton.innerText = "GitHub Logout"
+            submitButton.disabled = false
+            queryTextArea.disabled = false
+            githubLoginButtonWarning.style.display = "none"
+        } else {
+            githubLoginButton.innerText = "GitHub Login"
+            githubLoginButton.onclick = githubLogin
+            submitButton.disabled = true
+            queryTextArea.disabled = true
+            githubLoginButtonWarning.style.display = "block"
+        }
+    }
+
+    function githubLogin() {
+        // The state parameter redirects to the form page.
+        window.location.href = 'https://github.com/login/oauth/authorize?client_id=Iv1.7fbb4fdc9a50333d&redirect_url=https%3A//aiagent.octopus.com/api/oauth_callback&scope=user&allow_signup=false&state=form'
+    }
+
+    function githubLogout() {
+        if (confirm("Are you sure you want to log out? This is typically only required if something is broken.")) {
+            setCookie('session', null, 1)
+            checkLogin()
+            updateHistoryLinkState()
+        }
+    }
+
+    function setCookie(name, value, hours) {
+        var expires = "";
+        if (hours) {
+            var date = new Date();
+            date.setTime(date.getTime() + (hours * 60 * 60 * 1000));
+            expires = "; expires=" + date.toUTCString();
+        }
+        document.cookie = name + "=" + (value || "") + expires + "; path=/";
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+        }
+        return null;
+    }
+
+    function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+    }
+
+    const queryValue = getQueryParam('query');
+    const redirected = getQueryParam('redirected');
+    if (queryValue) {
+        sanitized_value = DOMPurify.sanitize(queryValue)
+        document.getElementById('query').value = sanitized_value
+        // Remove any existing value from the history
+        queryHistory = queryHistory.filter(x => x !== sanitized_value)
+        // push the new query to the end
+        queryHistory.push(sanitized_value)
+        updateHistory()
+    } else if (redirected === "true") {
+        loadLatestHistory()
+    }
+
+    function loadLatestHistory() {
+        const savedHistory = localStorage.getItem("queryHistory");
+        if (savedHistory) {
+            const queryHistory = JSON.parse(savedHistory)
+            if (queryHistory.length > 0) {
+                query.value = DOMPurify.sanitize(queryHistory[queryHistory.length - 1])
+            }
+        }
+    }
 
     function updateHistory() {
         if (queryHistory.length > 5) {
@@ -110,22 +287,45 @@
             link.setAttribute("href", "#")
             link.appendChild(document.createTextNode(h))
             link.onclick = function () {
+                // Do nothing if we need to log in
+                if (!getSessionCookie()) {
+                    return false
+                }
+
                 query.value = DOMPurify.sanitize(h)
                 return false
             }
+            link.className = "history-link"
+            link.style.textOverflow = "ellipsis";
+            link.style.width = "100%";
+            link.style.overflow = "hidden";
+            link.style.display = "inline-block";
+            link.style.whiteSpace = "nowrap";
+            link.style.verticalAlign = "middle";
             li.appendChild(link)
             historyList.appendChild(li)
         })
+
+        updateHistoryLinkState()
     }
 
+    var processing = false
+
     async function processQuery(event) {
+        // If the session has expired, we prompt to log in again.
+        if (!getSessionCookie()) {
+            checkLogin()
+            updateHistoryLinkState()
+            return
+        }
+
         if (processing) {
             return
         }
 
         form.classList.add('was-validated')
 
-        sanitized_value = DOMPurify.sanitize(query.value)
+        sanitized_value = DOMPurify.sanitize(query.value).substring(0, MAX_QUERY_LENGTH)
         query.value = sanitized_value
         if (!form.checkValidity()) {
             return
@@ -139,13 +339,13 @@
         markdown.innerHTML = "Processing..."
         query.disabled = true
         submit.disabled = true
-        token.disabled = true
+        github_login.disabled = true
         processing = true
 
         function enableInput() {
             query.disabled = false
             submit.disabled = false
-            token.disabled = false
+            github_login.disabled = false
             processing = false
         }
 
@@ -154,9 +354,6 @@
 
         // Use the polyfill to get the ability to send headers.
         var evtSource = new EventSourcePolyfill('/api/form_handler?message=' + encodeURIComponent(sanitized_value), {
-            headers: {
-                'X-GitHub-Token': token.value
-            },
             // https://stackoverflow.com/questions/71688537/event-source-timeout-in-45-seconds
             // Increase timeouts as it can take some time to process the request.
             heartbeatTimeout: 300000,
@@ -166,8 +363,8 @@
         evtSource.onmessage = (event) => {
             const endTime = new Date().getTime()
 
-            debugging.innerHTML = "Time taken: " + ((endTime - startTime) / 1000).toFixed(2) + " seconds"
-            debugging.innerHTML += "<br>Event: " + JSON.stringify(event)
+            debugging.innerText = "Time taken: " + ((endTime - startTime) / 1000).toFixed(2) + " seconds"
+            debugging.innerText += "\nEvent: " + JSON.stringify(event)
 
             console.log(event)
             evtSource.close()
@@ -188,7 +385,7 @@
             enableInput()
         };
         evtSource.onerror = (event) => {
-            debugging.innerHTML = "Event: " + JSON.stringify(event)
+            debugging.innerText = "Event: " + JSON.stringify(event)
             console.log(event)
             evtSource.close()
             markdown.innerHTML = "The request resulted in an error."
@@ -211,6 +408,11 @@
 
     helpQuery.onclick = function () {
         query.value = "What do you do?"
+        return false
+    }
+
+    terraformQuery.onclick = function () {
+        query.value = "Generate a Terraform module with the environments 'Development', 'Test', and 'Production'"
         return false
     }
 

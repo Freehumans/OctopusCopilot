@@ -14,7 +14,7 @@ max_deployments = 10
 # As noted at https://learn.microsoft.com/en-us/azure/azure-functions/event-driven-scaling?tabs=azure-cli#understanding-scaling-behaviors
 # HTTP triggers will scale out once per second. We may be in a position of having HTTP requests queued behind a
 # long-running query.
-llm_timeout = 30
+llm_timeout = 60
 
 # Testing revealed that the GPT 3.5 LLM struggles to extract meaningful values from large blobs of log outputs. For example,
 # this query fails:
@@ -24,3 +24,9 @@ llm_timeout = 30
 # A max_log_lines limit of 250 is appropriate for GPT 3.5.
 # The GPT-4o was better though. We set a much higher limit before displaying a warning.
 max_log_lines = 1000
+
+# This is the small model used for generating responses to queries
+mini_model = "gpt-4o-mini"
+
+# This is the full model used for generating responses to queries
+full_model = "gpt-4o"
